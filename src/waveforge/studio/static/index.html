@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WaveForge — Modular Audio DSP & C Synthesizer Studio</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div id="app">
+    <!-- Header Bar -->
+    <header class="studio-header">
+      <div class="brand">
+        <div class="logo-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M2 12C5 4 8 20 12 12C16 4 19 20 22 12" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">WaveForge</span>
+          <span class="brand-badge">DSP ENGINE</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="control-group">
+          <label for="preset-select">Preset:</label>
+          <select id="preset-select" class="dropdown">
+            <option value="acid_303">Acid 303 Bass</option>
+            <option value="sub_bass">Sub Bass Foundation</option>
+            <option value="lush_pad">Lush Ambient Pad</option>
+            <option value="fm_bell">FM Crystal Bell</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <button id="btn-add-node" class="btn btn-secondary">
+            <span class="icon">+</span> Add Node
+          </button>
+          <button id="btn-play" class="btn btn-primary">
+            <span class="icon">▶</span> Play (Space)
+          </button>
+          <button id="btn-export-c" class="btn btn-accent">
+            <span class="icon">&lt;/&gt;</span> Export C
+          </button>
+          <button id="btn-download-wav" class="btn btn-ghost" title="Download WAV">
+            <span class="icon">↓</span> WAV
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="studio-main">
+      <!-- Graph Canvas Container -->
+      <div id="canvas-container" class="canvas-container">
+        <svg id="cables-svg" class="cables-layer"></svg>
+        <div id="nodes-layer" class="nodes-layer"></div>
+      </div>
+
+      <!-- Bottom Dock: Oscilloscope, Spectrum Analyzer & Piano -->
+      <footer class="studio-dock">
+        <div class="dock-meters">
+          <div class="meter-box">
+            <div class="meter-label">OSCILLOSCOPE</div>
+            <canvas id="oscilloscope-canvas" width="280" height="90"></canvas>
+          </div>
+          <div class="meter-box">
+            <div class="meter-label">SPECTRUM FFT</div>
+            <canvas id="spectrum-canvas" width="280" height="90"></canvas>
+          </div>
+          <div class="stats-box">
+            <div class="stat-row">
+              <span class="stat-name">DSP RT:</span>
+              <span id="stat-rt" class="stat-value">0.0x</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-name">Peak:</span>
+              <span id="stat-peak" class="stat-value">0.00 dB</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-name">RMS:</span>
+              <span id="stat-rms" class="stat-value">0.00 dB</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Virtual Interactive Piano Keyboard -->
+        <div class="dock-keyboard">
+          <div id="piano-keyboard" class="piano-keyboard">
+            <!-- Dynamically generated keys -->
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- Modal: Add Node -->
+    <div id="modal-add-node" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Add DSP Node</h3>
+          <button class="modal-close" id="btn-close-node-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="node-catalog-grid" class="catalog-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: C Code Export -->
+    <div id="modal-export-c" class="modal-overlay hidden">
+      <div class="modal-card modal-large">
+        <div class="modal-header">
+          <h3>Standalone C99 Header Source (`waveforge_synth.h`)</h3>
+          <div class="modal-actions">
+            <button id="btn-copy-c" class="btn btn-secondary">Copy Code</button>
+            <button id="btn-download-c" class="btn btn-primary">Download .h</button>
+            <button class="modal-close" id="btn-close-c-modal">&times;</button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <pre id="c-code-view" class="code-view"><code></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

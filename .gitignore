@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C / Object build artifacts
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+*.wasm
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+env/
+venv/
+
+# Audio outputs
+*.wav
+*.mp3
+*.flac
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
