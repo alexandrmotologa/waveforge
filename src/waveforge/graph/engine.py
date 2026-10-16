@@ -5,7 +5,16 @@ import math
 import numpy as np
 from typing import Dict, Tuple, Optional, List, Any
 from waveforge.graph.patch import NodeGraph
-from waveforge.graph.node import BaseNode, OutputNode, OscillatorNode, ADSRNode
+from waveforge.graph.node import (
+    BaseNode,
+    OutputNode,
+    OscillatorNode,
+    ADSRNode,
+    KarplusStrongNode,
+    KickNode,
+    SnareNode,
+    HiHatNode,
+)
 
 
 def midi_to_freq(note: int, tuning_a4: float = 440.0) -> float:
@@ -53,6 +62,16 @@ class AudioEngine:
                 node.params["frequency"] = freq
             elif isinstance(node, ADSRNode):
                 node.env.gate_on()
+            elif isinstance(node, KarplusStrongNode):
+                node.params["frequency"] = freq
+                node.string.set_frequency(freq)
+                node.string.trigger_pluck(velocity)
+            elif isinstance(node, KickNode):
+                node.kick.trigger(velocity)
+            elif isinstance(node, SnareNode):
+                node.snare.trigger(velocity)
+            elif isinstance(node, HiHatNode):
+                node.hihat.trigger(velocity)
 
     def note_off(self) -> None:
         """Trigger note off: closes ADSR envelopes into release stage."""
