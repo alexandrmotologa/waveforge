@@ -39,7 +39,8 @@ The engine includes:
 </p>
 
 <p align="center">
-  <img src="docs/images/waveforge_export_c.png" width="80%" alt="WaveForge C Header Code Generation" />
+  <img src="docs/images/waveforge_export_c.png" width="58%" alt="WaveForge C Header Code Generation" />
+  <img src="docs/images/waveforge_mobile.png" width="38%" alt="WaveForge Responsive Mobile UI" />
 </p>
 
 ---

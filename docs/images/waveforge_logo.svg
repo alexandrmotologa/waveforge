@@ -1,32 +1,98 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="wfGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="emeraldGlow" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="50%" stop-color="#06b6d4"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
     </linearGradient>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#181b26"/>
-      <stop offset="100%" stop-color="#0b0d14"/>
+    <linearGradient id="facetHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#334155"/>
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
+    <linearGradient id="wingGradL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="wingGradR" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#090d16"/>
+    </linearGradient>
   </defs>
-
-  <!-- Squircle Base -->
-  <rect x="8" y="8" width="144" height="144" rx="36" fill="url(#bgGrad)" stroke="#262b3d" stroke-width="2"/>
-
-  <!-- Subtle concentric orbit guides -->
-  <circle cx="80" cy="80" r="54" fill="none" stroke="#1f2438" stroke-width="1" stroke-dasharray="3 3"/>
-  <circle cx="80" cy="80" r="38" fill="none" stroke="#1f2438" stroke-width="1"/>
-
-  <!-- PolyBLEP Waveform Curves -->
-  <path d="M 28 80 C 42 35, 52 125, 66 80 C 80 35, 90 125, 104 80 C 118 35, 126 110, 132 80"
-        fill="none" stroke="url(#wfGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
-
-  <!-- Anvil / Diamond Apex Nodes -->
-  <polygon points="80,50 86,58 80,66 74,58" fill="#10b981"/>
-  <polygon points="80,94 86,102 80,110 74,102" fill="#06b6d4"/>
+  <!-- 1. Luxury Squircle Canvas -->
+  <rect x="12" y="12" width="1000" height="1000" rx="220" fill="#ffffff" stroke="#e2e8f0" stroke-width="8"/>
+  <!-- 2. Hexagonal Gateway Frame -->
+  <polygon points="512,102 867,307 867,717 512,922 157,717 157,307"
+           fill="none" stroke="#0f172a" stroke-width="36" stroke-linejoin="round"/>
+  <polygon points="512,147 828,330 828,694 512,877 196,694 196,330"
+           fill="none" stroke="#10b981" stroke-width="6" stroke-dasharray="16 12" opacity="0.45"/>
+  <!-- Acoustic Wave Echolocation Rings -->
+  <circle cx="512" cy="512" r="300" fill="none" stroke="#f1f5f9" stroke-width="4"/>
+  <circle cx="512" cy="512" r="230" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+  <circle cx="512" cy="512" r="160" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="8 8"/>
+  <!-- Solid Base Silhouette (Watertight Base) -->
+  <polygon points="512,410 470,360 400,290 340,170 365,340 420,440 280,480 190,560 240,680 320,770 420,830 512,870 604,830 704,770 784,680 834,560 744,480 604,440 659,340 684,170 624,290 554,360" fill="#090d16"/>
+  <!-- Low-Poly Body and Wings Facets -->
+  <polygon points="512,560 420,680 512,870" fill="#1e293b"/>
+  <polygon points="512,560 360,570 420,680" fill="#334155"/>
+  <polygon points="420,680 320,770 512,870" fill="#0f172a"/>
+  <polygon points="360,570 280,670 420,680" fill="#1e293b"/>
+  <polygon points="360,570 240,560 280,670" fill="#475569"/>
+  <polygon points="280,670 240,680 320,770" fill="#0b1120"/>
+  <polygon points="240,560 190,560 280,670" fill="#334155"/>
+  <polygon points="360,570 280,480 240,560" fill="#64748b"/>
+  <polygon points="420,440 280,480 360,570" fill="#475569"/>
+  <polygon points="512,510 420,440 360,570" fill="#334155"/>
+  <polygon points="512,560 604,680 512,870" fill="#0f172a"/>
+  <polygon points="512,560 664,570 604,680" fill="#1e293b"/>
+  <polygon points="604,680 704,770 512,870" fill="#090d16"/>
+  <polygon points="664,570 744,670 604,680" fill="#131c2e"/>
+  <polygon points="664,570 784,560 744,670" fill="#1e293b"/>
+  <polygon points="744,670 784,680 704,770" fill="#070a12"/>
+  <polygon points="784,560 834,560 744,670" fill="#182235"/>
+  <polygon points="664,570 744,480 784,560" fill="#334155"/>
+  <polygon points="604,440 744,480 664,570" fill="#1e293b"/>
+  <polygon points="512,510 604,440 664,570" fill="#151e30"/>
+  <!-- Chest & Core Resonator -->
+  <polygon points="512,510 450,580 512,660" fill="#334155"/>
+  <polygon points="512,510 574,580 512,660" fill="#1e293b"/>
+  <polygon points="512,660 450,580 512,740" fill="#1e293b"/>
+  <polygon points="512,660 574,580 512,740" fill="#0f172a"/>
+  <!-- Acoustic Echolocation Ears -->
+  <polygon points="430,420 340,170 390,300" fill="#1e293b"/>
+  <polygon points="430,420 390,300 460,350" fill="#334155"/>
+  <polygon points="340,170 390,300 365,340" fill="#0f172a"/>
+  <polygon points="430,420 365,340 420,440" fill="#151e30"/>
+  <polygon points="390,300 355,200 420,380" fill="url(#emeraldGlow)"/>
+  <polygon points="420,380 375,340 430,410" fill="#06b6d4" opacity="0.8"/>
+  <polygon points="594,420 684,170 634,300" fill="#0f172a"/>
+  <polygon points="594,420 634,300 564,350" fill="#1e293b"/>
+  <polygon points="684,170 634,300 659,340" fill="#080c14"/>
+  <polygon points="594,420 659,340 604,440" fill="#0d1320"/>
+  <polygon points="634,300 669,200 604,380" fill="url(#emeraldGlow)" opacity="0.9"/>
+  <polygon points="604,380 649,340 594,410" fill="#0891b2" opacity="0.8"/>
+  <!-- Head & Muzzle Geometry -->
+  <polygon points="512,330 460,350 470,420" fill="#475569"/>
+  <polygon points="512,330 564,350 554,420" fill="#334155"/>
+  <polygon points="512,330 470,420 512,470" fill="#334155"/>
+  <polygon points="512,330 554,420 512,470" fill="#1e293b"/>
+  <polygon points="512,410 470,420 512,470" fill="#64748b"/>
+  <polygon points="512,410 554,420 512,470" fill="#475569"/>
+  <polygon points="512,470 485,500 512,530" fill="#94a3b8"/>
+  <polygon points="512,470 539,500 512,530" fill="#64748b"/>
+  <polygon points="512,530 495,545 512,555" fill="#475569"/>
+  <polygon points="512,530 529,545 512,555" fill="#334155"/>
+  <!-- Focused Echolocation Eyes -->
+  <polygon points="468,435 488,442 476,448 462,442" fill="#00f5ff"/>
+  <polygon points="472,440 482,443 475,446" fill="#ffffff"/>
+  <polygon points="556,435 536,442 548,448 562,442" fill="#00f5ff"/>
+  <polygon points="552,440 542,443 549,446" fill="#ffffff"/>
+  <!-- PolyBLEP Wave nodes in Wing tips -->
+  <circle cx="280" cy="480" r="7" fill="#10b981"/>
+  <circle cx="744" cy="480" r="7" fill="#10b981"/>
+  <circle cx="190" cy="560" r="6" fill="#06b6d4"/>
+  <circle cx="834" cy="560" r="6" fill="#06b6d4"/>
+  <circle cx="240" cy="680" r="6" fill="#10b981"/>
+  <circle cx="784" cy="680" r="6" fill="#10b981"/>
+  <circle cx="320" cy="770" r="5" fill="#06b6d4"/>
+  <circle cx="704" cy="770" r="5" fill="#06b6d4"/>
+  <circle cx="512" cy="870" r="8" fill="#10b981"/>
 </svg>
