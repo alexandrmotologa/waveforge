@@ -51,3 +51,23 @@ def test_cli_benchmark():
     res = runner.invoke(app, ["benchmark", "sub_bass", "-s", "1.0"])
     assert res.exit_code == 0
     assert "Megasamples/sec" in res.stdout
+
+
+def test_cli_export_html(tmp_path):
+    out_html = str(tmp_path / "player.html")
+    res = runner.invoke(app, ["export-html", "techno_acid_seq", "-o", out_html])
+    assert res.exit_code == 0
+    assert os.path.exists(out_html)
+    with open(out_html, "r", encoding="utf-8") as f:
+        c = f.read()
+    assert "AudioContext" in c
+
+
+def test_cli_export_plugin(tmp_path):
+    out_dir = str(tmp_path / "plugin_proj")
+    res = runner.invoke(app, ["export-plugin", "acid_303", "--out-dir", out_dir, "--name", "Acid303"])
+    assert res.exit_code == 0
+    assert os.path.exists(os.path.join(out_dir, "CMakeLists.txt"))
+    assert os.path.exists(os.path.join(out_dir, "include", "waveforge_synth.h"))
+    assert os.path.exists(os.path.join(out_dir, "src", "Acid303_plugin.h"))
+

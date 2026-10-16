@@ -15,6 +15,46 @@
   let activeNote = "C3";
   let connectingState = null; // { fromNode, fromPin, x1, y1 }
 
+  // Undo / Redo History Stacks
+  let historyStack = [];
+  let redoStack = [];
+
+  function pushHistoryState() {
+    historyStack.push(JSON.parse(JSON.stringify(currentPatch)));
+    if (historyStack.length > 50) historyStack.shift();
+    redoStack = [];
+    updateUndoRedoButtons();
+  }
+
+  function undo() {
+    if (historyStack.length === 0) return;
+    redoStack.push(JSON.parse(JSON.stringify(currentPatch)));
+    currentPatch = historyStack.pop();
+    renderGraph();
+    updateUndoRedoButtons();
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return;
+    historyStack.push(JSON.parse(JSON.stringify(currentPatch)));
+    currentPatch = redoStack.pop();
+    renderGraph();
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    const uBtn = document.getElementById("btn-undo");
+    const rBtn = document.getElementById("btn-redo");
+    if (uBtn) {
+      uBtn.style.opacity = historyStack.length > 0 ? "1.0" : "0.4";
+      uBtn.disabled = historyStack.length === 0;
+    }
+    if (rBtn) {
+      rBtn.style.opacity = redoStack.length > 0 ? "1.0" : "0.4";
+      rBtn.disabled = redoStack.length === 0;
+    }
+  }
+
   // Canvas elements
   const canvasContainer = document.getElementById("canvas-container");
   const cablesSvg = document.getElementById("cables-svg");
@@ -39,6 +79,7 @@
     setupEvents();
     renderCables();
     drawIdleWaveform();
+    updateUndoRedoButtons();
   }
 
   // --- Catalog & Presets ---
@@ -55,6 +96,7 @@
 
   async function loadPreset(presetId) {
     try {
+      pushHistoryState();
       const res = await fetch(`/api/preset/${presetId}`);
       currentPatch = await res.json();
       renderGraph();
@@ -98,6 +140,7 @@
 
     header.querySelector(".node-close-btn").addEventListener("click", (e) => {
       e.stopPropagation();
+      pushHistoryState();
       removeNode(node.id);
     });
 
@@ -160,6 +203,7 @@
           </label>
         `;
         pRow.querySelector("input").addEventListener("change", (e) => {
+          pushHistoryState();
           node.params[paramKey] = e.target.checked;
         });
       } else if (typeof paramVal === "string") {
@@ -168,6 +212,7 @@
           <input type="text" class="param-select" value="${paramVal}" data-param="${paramKey}">
         `;
         pRow.querySelector("input").addEventListener("change", (e) => {
+          pushHistoryState();
           node.params[paramKey] = e.target.value;
         });
       } else {
@@ -190,6 +235,9 @@
           const v = parseFloat(e.target.value);
           node.params[paramKey] = v;
           valText.textContent = v.toFixed(2);
+        });
+        slider.addEventListener("change", () => {
+          pushHistoryState();
         });
       }
 
@@ -237,10 +285,15 @@
     };
 
     const onMouseUp = () => {
-      isDragging = false;
-      card.classList.remove("selected");
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+      if (isDragging) {
+        isDragging = false;
+        card.classList.remove("selected");
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        if (Math.abs(card.offsetLeft - initialX) > 2 || Math.abs(card.offsetTop - initialY) > 2) {
+          pushHistoryState();
+        }
+      }
     };
 
     card.addEventListener("mousedown", onMouseDown);
@@ -271,6 +324,7 @@
 
       // Disconnect on cable click
       path.addEventListener("click", () => {
+        pushHistoryState();
         currentPatch.connections.splice(index, 1);
         renderGraph();
       });
@@ -306,6 +360,7 @@
   }
 
   function addNode(typeId) {
+    pushHistoryState();
     const meta = nodeCatalog.find(m => m.type_id === typeId);
     if (!meta) return;
 
@@ -368,6 +423,7 @@
           const toPin = targetSocket.getAttribute("data-pin");
 
           if (connectingState.fromNode !== toNode) {
+            pushHistoryState();
             // Remove existing connection to target pin
             currentPatch.connections = currentPatch.connections.filter(c => !(c.to_node === toNode && c.to_pin === toPin));
             currentPatch.connections.push({
@@ -399,104 +455,137 @@
         body: JSON.stringify({
           patch: currentPatch,
           note: note,
-          duration: 1.8,
+          duration: 2.0,
           velocity: 0.85
         })
       });
 
-      if (!res.ok) {
-        console.error("Render failed:", await res.text());
-        return;
-      }
-
+      if (!res.ok) throw new Error("Render error");
       const data = await res.json();
 
-      // Update metrics
-      statRt.textContent = `${data.realtime_factor.toFixed(1)}x`;
-      statPeak.textContent = `${(20 * Math.log10(Math.max(1e-4, data.peak))).toFixed(1)} dB`;
-      statRms.textContent = `${(20 * Math.log10(Math.max(1e-4, data.rms))).toFixed(1)} dB`;
-
-      // Draw oscilloscope & spectrum
-      drawWaveform(data.waveform);
-      drawSpectrum(data.spectrum);
-
-      // Play audio
-      if (currentAudio) {
-        currentAudio.pause();
-      }
-      currentAudio = new Audio("data:audio/wav;base64," + data.audio_base64);
-      currentAudio.play();
+      updateVisualizers(data);
+      playAudioBuffer(data.audio_base64);
     } catch (err) {
-      console.error("Error triggering sound:", err);
+      console.error("Playback error:", err);
     } finally {
-      setTimeout(() => playBtn.classList.remove("playing"), 800);
+      setTimeout(() => playBtn.classList.remove("playing"), 300);
     }
   }
 
-  // --- Visualizer Drawing ---
-  function drawIdleWaveform() {
-    oscCtx.fillStyle = "#0b0d14";
-    oscCtx.fillRect(0, 0, oscCanvas.width, oscCanvas.height);
-    oscCtx.strokeStyle = "#1e293b";
-    oscCtx.lineWidth = 1;
-    oscCtx.beginPath();
-    oscCtx.moveTo(0, oscCanvas.height / 2);
-    oscCtx.lineTo(oscCanvas.width, oscCanvas.height / 2);
-    oscCtx.stroke();
+  async function playPolyphonicSound() {
+    const polyBtn = document.getElementById("btn-render-poly");
+    polyBtn.classList.add("playing");
 
-    specCtx.fillStyle = "#0b0d14";
-    specCtx.fillRect(0, 0, specCanvas.width, specCanvas.height);
+    try {
+      const res = await fetch("/api/render-poly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patch: currentPatch,
+          note: "C3",
+          duration: 2.5,
+          velocity: 0.85
+        })
+      });
+
+      if (!res.ok) throw new Error("Polyphonic render error");
+      const data = await res.json();
+
+      updateVisualizers(data);
+      playAudioBuffer(data.audio_base64);
+    } catch (err) {
+      console.error("Polyphonic playback error:", err);
+    } finally {
+      setTimeout(() => polyBtn.classList.remove("playing"), 300);
+    }
   }
 
-  function drawWaveform(points) {
-    if (!points || points.length === 0) return;
+  function playAudioBuffer(base64Wav) {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+
+    const audioUrl = "data:audio/wav;base64," + base64Wav;
+    currentAudio = new Audio(audioUrl);
+    currentAudio.play().catch(e => console.log("Audio autoplay restricted:", e));
+  }
+
+  function updateVisualizers(data) {
+    // Stats
+    if (data.realtime_factor) statRt.textContent = `${data.realtime_factor.toFixed(1)}x`;
+    const peakDb = 20.0 * Math.log10(Math.max(data.peak || 1e-4, 1e-4));
+    const rmsDb = 20.0 * Math.log10(Math.max(data.rms || 1e-4, 1e-4));
+    statPeak.textContent = `${peakDb.toFixed(1)} dB`;
+    statRms.textContent = `${rmsDb.toFixed(1)} dB`;
+
+    // Oscilloscope waveform
+    if (data.waveform) drawWaveform(data.waveform);
+
+    // FFT Spectrum
+    if (data.spectrum) drawSpectrum(data.spectrum);
+  }
+
+  function drawIdleWaveform() {
     const w = oscCanvas.width;
     const h = oscCanvas.height;
+    oscCtx.fillStyle = "#11141e";
+    oscCtx.fillRect(0, 0, w, h);
+    oscCtx.strokeStyle = "#334155";
+    oscCtx.lineWidth = 1;
+    oscCtx.beginPath();
+    oscCtx.moveTo(0, h / 2);
+    oscCtx.lineTo(w, h / 2);
+    oscCtx.stroke();
+  }
 
-    oscCtx.fillStyle = "#0b0d14";
+  function drawWaveform(waveform) {
+    const w = oscCanvas.width;
+    const h = oscCanvas.height;
+    oscCtx.fillStyle = "#11141e";
     oscCtx.fillRect(0, 0, w, h);
 
-    // Center grid line
-    oscCtx.strokeStyle = "#1e293b";
+    // Center gridline
+    oscCtx.strokeStyle = "rgba(51, 65, 85, 0.4)";
     oscCtx.beginPath();
     oscCtx.moveTo(0, h / 2);
     oscCtx.lineTo(w, h / 2);
     oscCtx.stroke();
 
-    // Waveform line with green glow
+    // Waveform curve
     oscCtx.strokeStyle = "#10b981";
     oscCtx.lineWidth = 2;
-    oscCtx.shadowColor = "#10b981";
-    oscCtx.shadowBlur = 6;
     oscCtx.beginPath();
 
-    const step = w / points.length;
-    for (let i = 0; i < points.length; i++) {
-      const x = i * step;
-      const y = (1.0 - (points[i] + 1.0) * 0.5) * h;
+    const sliceW = w / waveform.length;
+    let x = 0;
+
+    for (let i = 0; i < waveform.length; i++) {
+      const v = waveform[i];
+      const y = (0.5 - v * 0.45) * h;
+
       if (i === 0) oscCtx.moveTo(x, y);
       else oscCtx.lineTo(x, y);
+
+      x += sliceW;
     }
     oscCtx.stroke();
-    oscCtx.shadowBlur = 0;
   }
 
-  function drawSpectrum(spectrumDb) {
-    if (!spectrumDb || spectrumDb.length === 0) return;
+  function drawSpectrum(spectrum) {
     const w = specCanvas.width;
     const h = specCanvas.height;
-
-    specCtx.fillStyle = "#0b0d14";
+    specCtx.fillStyle = "#11141e";
     specCtx.fillRect(0, 0, w, h);
 
-    const barWidth = Math.max(1, w / spectrumDb.length);
-    for (let i = 0; i < spectrumDb.length; i++) {
-      // Map [-80, 0] dB to [0, h]
-      const db = spectrumDb[i];
-      const norm = Math.max(0, Math.min(1, (db + 80.0) / 80.0));
-      const barH = norm * h;
+    const barWidth = Math.max(1, w / spectrum.length);
 
-      const grad = specCtx.createLinearGradient(0, h - barH, 0, h);
+    for (let i = 0; i < spectrum.length; i++) {
+      const db = spectrum[i]; // -80 to +10 dB
+      const normalized = Math.max(0, Math.min(1, (db + 80.0) / 90.0));
+      const barH = normalized * h;
+
+      const grad = specCtx.createLinearGradient(0, h, 0, 0);
       grad.addColorStop(0, "#06b6d4");
       grad.addColorStop(1, "rgba(6, 182, 212, 0.1)");
 
@@ -592,8 +681,50 @@
     }
   }
 
+  // --- Export HTML5 Single-File Player ---
+  async function downloadHtmlPlayer() {
+    try {
+      const res = await fetch("/api/export-html", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: currentPatch })
+      });
+      const data = await res.json();
+      const blob = new Blob([data.html], { type: "text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${currentPatch.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_player.html`;
+      a.click();
+    } catch (err) {
+      console.error("Export HTML player failed:", err);
+    }
+  }
+
+  // --- Export VST/CLAP Plugin Modal ---
+  async function openExportPluginModal() {
+    try {
+      const res = await fetch("/api/export-plugin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: currentPatch })
+      });
+      const data = await res.json();
+      const preview = `// --- CMakeLists.txt ---\n${data.cmake}\n\n// --- WaveForgeSynth_plugin.h ---\n${data.cpp_header}\n\n// --- WaveForgeSynth_plugin.cpp ---\n${data.cpp_source}`;
+      document.querySelector("#plugin-code-view code").textContent = preview;
+      document.getElementById("modal-export-plugin").classList.remove("hidden");
+    } catch (err) {
+      console.error("Export Plugin failed:", err);
+    }
+  }
+
   // --- Event Listeners ---
   function setupEvents() {
+    // Undo / Redo
+    const btnUndo = document.getElementById("btn-undo");
+    const btnRedo = document.getElementById("btn-redo");
+    if (btnUndo) btnUndo.addEventListener("click", undo);
+    if (btnRedo) btnRedo.addEventListener("click", redo);
+
     // Preset dropdown
     document.getElementById("preset-select").addEventListener("change", (e) => {
       loadPreset(e.target.value);
@@ -601,10 +732,13 @@
 
     // Top action buttons
     document.getElementById("btn-play").addEventListener("click", () => playSound());
+    document.getElementById("btn-render-poly").addEventListener("click", () => playPolyphonicSound());
     document.getElementById("btn-add-node").addEventListener("click", () => {
       document.getElementById("modal-add-node").classList.remove("hidden");
     });
     document.getElementById("btn-export-c").addEventListener("click", openExportCModal);
+    document.getElementById("btn-export-html").addEventListener("click", downloadHtmlPlayer);
+    document.getElementById("btn-export-plugin").addEventListener("click", openExportPluginModal);
 
     // Download WAV button
     document.getElementById("btn-download-wav").addEventListener("click", async () => {
@@ -627,6 +761,12 @@
     document.getElementById("btn-close-c-modal").addEventListener("click", () => {
       document.getElementById("modal-export-c").classList.add("hidden");
     });
+    const closePluginModal = document.getElementById("btn-close-plugin-modal");
+    if (closePluginModal) {
+      closePluginModal.addEventListener("click", () => {
+        document.getElementById("modal-export-plugin").classList.add("hidden");
+      });
+    }
 
     // Copy C code
     document.getElementById("btn-copy-c").addEventListener("click", () => {
@@ -646,9 +786,31 @@
       a.click();
     });
 
-    // Spacebar to trigger play
+    // Copy Plugin code
+    const copyPluginBtn = document.getElementById("btn-copy-plugin");
+    if (copyPluginBtn) {
+      copyPluginBtn.addEventListener("click", () => {
+        const code = document.querySelector("#plugin-code-view code").textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          alert("Plugin code copied to clipboard!");
+        });
+      });
+    }
+
+    // Keyboard shortcuts: Space for play, Ctrl+Z for undo, Ctrl+Y for redo
     window.addEventListener("keydown", (e) => {
-      if (e.code === "Space" && e.target.tagName !== "INPUT") {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      } else if (e.code === "Space" && e.target.tagName !== "INPUT") {
         e.preventDefault();
         playSound();
       }

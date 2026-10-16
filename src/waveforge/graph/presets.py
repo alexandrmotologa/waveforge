@@ -170,9 +170,108 @@ def create_fm_bell_patch() -> NodeGraph:
     return g
 
 
+def create_techno_acid_seq_patch() -> NodeGraph:
+    """16-step modular sequencer driving acid 303 with portamento slides and tape delay."""
+    g = NodeGraph(name="Techno Acid Sequence", sample_rate=44100, block_size=128)
+
+    g.add_node("sequencer", "seq1", x=60, y=100, params={"bpm": 132.0, "slide_time": 0.05})
+    g.add_node("oscillator", "osc1", x=300, y=100, params={"waveform": "saw", "frequency": 110.0})
+    g.add_node("adsr", "env1", x=300, y=320, params={"attack": 0.005, "decay": 0.22, "sustain": 0.1, "release": 0.1})
+    g.add_node("biquad_filter", "flt1", x=520, y=100, params={"filter_type": "lowpass", "cutoff_hz": 500.0, "q": 4.0})
+    g.add_node("vca", "vca1", x=720, y=100, params={"gain": 1.1})
+    g.add_node("distortion", "dist1", x=920, y=100, params={"type": "tanh", "drive": 2.8, "mix": 0.8})
+    g.add_node("delay", "dly1", x=1120, y=100, params={"time_sec": 0.22, "feedback": 0.4, "mix": 0.3, "ping_pong": True})
+    g.add_node("audio_output", "out1", x=1340, y=100, params={"master_volume": 0.85, "limiter_enabled": True})
+
+    g.connect("seq1", "gate", "env1", "gate")
+    g.connect("osc1", "out", "flt1", "in")
+    g.connect("flt1", "out", "vca1", "in")
+    g.connect("env1", "out", "vca1", "cv")
+    g.connect("vca1", "out", "dist1", "in")
+    g.connect("dist1", "out", "dly1", "in_l")
+    g.connect("dist1", "out", "dly1", "in_r")
+    g.connect("dly1", "out_l", "out1", "left")
+    g.connect("dly1", "out_r", "out1", "right")
+
+    return g
+
+
+def create_karplus_acoustic_patch() -> NodeGraph:
+    """Plucked string physical modeling harp with stereo chorus and reverberation."""
+    g = NodeGraph(name="Karplus Acoustic Pluck", sample_rate=44100, block_size=128)
+
+    g.add_node("karplus_strong", "pluck1", x=60, y=120, params={"frequency": 196.0, "decay": 0.99, "damping": 0.3})
+    g.add_node("chorus", "chorus1", x=320, y=120, params={"rate_hz": 0.9, "depth_ms": 2.5, "mix": 0.35})
+    g.add_node("reverb", "rev1", x=580, y=120, params={"room_size": 0.8, "damping": 0.35, "wet": 0.45, "dry": 0.65})
+    g.add_node("audio_output", "out1", x=820, y=120, params={"master_volume": 0.85, "limiter_enabled": True})
+
+    g.connect("pluck1", "out", "chorus1", "in_l")
+    g.connect("pluck1", "out", "chorus1", "in_r")
+    g.connect("chorus1", "out_l", "rev1", "in_l")
+    g.connect("chorus1", "out_r", "rev1", "in_r")
+    g.connect("rev1", "out_l", "out1", "left")
+    g.connect("rev1", "out_r", "out1", "right")
+
+    return g
+
+
+def create_vocal_choir_patch() -> NodeGraph:
+    """Robotic vowel choir pad using formant filtering, BBD chorus, and Schroeder reverb."""
+    g = NodeGraph(name="Vocal Formant Choir", sample_rate=44100, block_size=128)
+
+    g.add_node("oscillator", "osc1", x=60, y=100, params={"waveform": "saw", "frequency": 164.8})
+    g.add_node("lfo", "lfo1", x=60, y=300, params={"rate_hz": 0.25, "waveform": "triangle", "depth": 1.5})
+    g.add_node("formant_filter", "formant1", x=320, y=100, params={"vowel_pos": 1.0, "resonance_scale": 1.4})
+    g.add_node("adsr", "env1", x=320, y=300, params={"attack": 0.4, "decay": 0.6, "sustain": 0.8, "release": 1.0})
+    g.add_node("vca", "vca1", x=560, y=100, params={"gain": 1.0})
+    g.add_node("chorus", "chorus1", x=780, y=100, params={"rate_hz": 1.4, "depth_ms": 4.0, "mix": 0.5})
+    g.add_node("reverb", "rev1", x=1000, y=100, params={"room_size": 0.85, "damping": 0.3, "wet": 0.5, "dry": 0.6})
+    g.add_node("audio_output", "out1", x=1220, y=100, params={"master_volume": 0.85, "limiter_enabled": True})
+
+    g.connect("lfo1", "out", "formant1", "vowel_mod")
+    g.connect("osc1", "out", "formant1", "in")
+    g.connect("formant1", "out", "vca1", "in")
+    g.connect("env1", "out", "vca1", "cv")
+    g.connect("vca1", "out", "chorus1", "in_l")
+    g.connect("vca1", "out", "chorus1", "in_r")
+    g.connect("chorus1", "out_l", "rev1", "in_l")
+    g.connect("chorus1", "out_r", "rev1", "in_r")
+    g.connect("rev1", "out_l", "out1", "left")
+    g.connect("rev1", "out_r", "out1", "right")
+
+    return g
+
+
+def create_tr808_groove_patch() -> NodeGraph:
+    """Full analog TR-808 rhythm groove with Kick, Snare, and 6-osc Hi-Hat into summing mixer."""
+    g = NodeGraph(name="TR-808 Drum Machine", sample_rate=44100, block_size=128)
+
+    g.add_node("drum_kick", "kick1", x=60, y=80, params={"pitch_start": 220.0, "pitch_end": 48.0, "decay_time": 0.55})
+    g.add_node("drum_snare", "snare1", x=60, y=260, params={"tone_freq": 180.0, "snappy_mix": 0.7})
+    g.add_node("drum_hihat", "hihat1", x=60, y=440, params={"decay_time": 0.08, "cutoff_hz": 7000.0})
+
+    g.add_node("mixer", "mix1", x=360, y=200, params={"ch1_gain": 0.9, "ch2_gain": 0.75, "ch3_gain": 0.65, "master_gain": 1.0})
+    g.add_node("distortion", "dist1", x=600, y=200, params={"type": "tanh", "drive": 1.6, "mix": 0.5})
+    g.add_node("audio_output", "out1", x=820, y=200, params={"master_volume": 0.85, "limiter_enabled": True})
+
+    g.connect("kick1", "out", "mix1", "in1")
+    g.connect("snare1", "out", "mix1", "in2")
+    g.connect("hihat1", "out", "mix1", "in3")
+    g.connect("mix1", "out", "dist1", "in")
+    g.connect("dist1", "out", "out1", "left")
+    g.connect("dist1", "out", "out1", "right")
+
+    return g
+
+
 PRESET_CATALOG: Dict[str, Callable[[], NodeGraph]] = {
     "acid_303": create_acid_303_patch,
     "sub_bass": create_sub_bass_patch,
     "lush_pad": create_lush_pad_patch,
     "fm_bell": create_fm_bell_patch,
+    "techno_acid_seq": create_techno_acid_seq_patch,
+    "karplus_acoustic": create_karplus_acoustic_patch,
+    "vocal_choir": create_vocal_choir_patch,
+    "tr808_groove": create_tr808_groove_patch,
 }
+

@@ -14,15 +14,20 @@
 
 ## Overview
 
-WaveForge provides a modular digital audio workstation engine in Python 3.12 with an interactive visual node patcher and an ahead-of-time C code generator. It implements mathematical filter equations without external audio frameworks.
+WaveForge provides a modular digital audio workstation engine in Python 3.12 with an interactive visual node patcher, a zero-dependency C code generator, and an export pipeline for HTML5 WebAudio and VST3/CLAP plugins. It implements discrete mathematical difference equations without external DSP frameworks.
 
 The engine includes:
-- **PolyBLEP Oscillators**: Suppresses harmonic aliasing on Sawtooth, Square (variable duty cycle), and Triangle waves via 2nd-order polynomial residuals.
+- **PolyBLEP Oscillators**: Suppresses harmonic aliasing on Sawtooth, Square (variable pulse width), and Triangle waves via 2nd-order polynomial residuals.
 - **Biquad Filters**: Robert Bristow-Johnson Audio EQ Cookbook implementations in Direct Form II Transposed (DF2T) structure for Lowpass, Highpass, Bandpass, Notch, Allpass, Peaking, and Shelving modes.
 - **State Variable Filter (SVF)**: Chamberlin 2-pole filter with 2x internal oversampling, outputting lowpass, highpass, bandpass, and notch signals simultaneously.
-- **Analog-Modeled Envelopes**: Exponential ADSR stages based on capacitor RC charging curves.
-- **Effects Suite**: Fractional stereo ping-pong delay with Hermite interpolation, non-linear waveshaping distortion (tanh, cubic, diode, wavefolder), and Schroeder-Moorer reverberation.
-- **C99 Code Generator**: Compiles any visual node graph into a single standalone C header (`waveforge_synth.h`) with zero third-party dependencies, ready to compile to native binaries or WebAssembly.
+- **Vocal Formant Resonator**: Triple-peak parallel bandpass vocal tract filter with continuous morphing across A, E, I, O, U phonemes.
+- **Karplus-Strong String Synthesis**: Physical modeling plucked string engine combining filtered delay loops and noise burst excitation for acoustic strings and guitars.
+- **Analog-Modeled Percussion**: Roland TR-808 synthesis models for Kick (exponential pitch dive with saturation), Snare (dual body tones and bandpass snappy noise), and Hi-Hat (6-oscillator inharmonic square cluster into resonant highpass).
+- **16-Step Modular Sequencer**: Pattern sequencer with per-step pitch CV, gate length, velocity, accents, and 303-style portamento glide.
+- **Polyphony and Unison Engine**: Dynamic voice allocator supporting 1-16 voices, release-aware voice stealing, and multi-voice unison detune spread.
+- **Effects Suite**: Stereo BBD chorus/flanger with dual 90-degree quadrature LFOs, fractional ping-pong delay with Hermite interpolation, waveshaper distortion (tanh, cubic, diode, wavefolder), and Schroeder reverberation.
+- **C99 Standalone Generator**: Transpiles any visual patch into a single standalone C99 header (`waveforge_synth.h`) requiring only `<math.h>` and `<stdint.h>`.
+- **Plugin and Web Exporters**: Generates standalone single-file HTML5 WebAudio players and standard C++ VST3/CLAP CMake project skeletons.
 
 ---
 
@@ -53,7 +58,7 @@ Requirements: Python 3.10+ (tested on Python 3.12). A C compiler (`clang` or `gc
 
 ## Command Line Interface
 
-WaveForge provides a Typer-powered CLI for rendering, benchmarking, inspecting patches, and launching the Web Studio.
+WaveForge provides a Typer-powered CLI for rendering, benchmarking, exporting standalone players, and launching the Web Studio.
 
 ### Render Patch to WAV
 ```bash
@@ -63,6 +68,16 @@ waveforge render acid_303 -o acid.wav -d 3.0 -n C3
 ### Export Standalone C Header
 ```bash
 waveforge export-c acid_303 -o synth.h
+```
+
+### Export Single-File HTML5 WebAudio Player
+```bash
+waveforge export-html techno_acid_seq -o player.html
+```
+
+### Export C++ VST3 and CLAP Plugin Project
+```bash
+waveforge export-plugin acid_303 --out-dir build_plugin --name AcidSynth
 ```
 
 ### Compile and Verify C Header with Clang
@@ -79,7 +94,7 @@ waveforge benchmark acid_303 -s 10.0
 ```bash
 waveforge studio --port 8000
 ```
-Open `http://localhost:8000` in any modern web browser to access the visual rack editor, oscilloscope, spectrum analyzer, and virtual keyboard.
+Open `http://localhost:8000` in any web browser to access the visual rack editor, undo/redo history, oscilloscope, spectrum analyzer, and virtual keyboard.
 
 ---
 
@@ -155,7 +170,13 @@ The test suite validates:
 - PolyBLEP step discontinuity equations and aliasing suppression
 - RBJ Biquad frequency attenuation curves and filter stability
 - Analog capacitor charge/discharge curves in exponential ADSR envelopes
-- Fractional delay line Hermite interpolation and Schroeder reverb decay
+- Karplus-Strong string pluck decay and damping response
+- Formant vowel filter response across phonemes
+- Stereo BBD chorus 90-degree quadrature modulation
+- TR-808 Kick, Snare, and Hi-Hat synthesis curves
+- 16-step sequencer timing, gate durations, and 303 portamento slide
+- Polyphonic voice allocation, voice stealing, and unison detuning
+- Standalone HTML5 player and C++ VST3/CLAP plugin generation
 - DAG topological sort and cycle detection
 - C code generation and native compilation via clang
 

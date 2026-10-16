@@ -19,6 +19,11 @@ from waveforge.core.filters import BiquadFilter, StateVariableFilter
 from waveforge.core.envelopes import ADSREnvelope
 from waveforge.core.modulation import LFO
 from waveforge.core.effects import DelayEffect, Waveshaper, SchroederReverb, StereoPanner
+from waveforge.core.karplus_strong import KarplusStrongString
+from waveforge.core.formant import FormantFilter
+from waveforge.core.chorus import StereoChorusEffect
+from waveforge.core.percussion import Kick808, Snare808, HiHat808
+from waveforge.core.sequencer import StepSequencer, SequencerStep
 
 
 class NodePin:
@@ -718,6 +723,497 @@ class OutputNode(BaseNode):
         return {"left": left, "right": right}
 
 
+class SequencerNode(BaseNode):
+    """16-step modular pattern sequencer with pitch, gate, slide, and accent."""
+
+    TYPE_ID = "sequencer"
+    DISPLAY_NAME = "16-Step Sequencer"
+    CATEGORY = "Modulation"
+    DESCRIPTION = "16-step pattern sequencer with 303-style portamento slide and accent dynamics."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "bpm": 125.0,
+            "gate_length": 0.65,
+            "slide_time": 0.06,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="clock", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+                PinSchema(name="reset", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="pitch", pin_type=PinType.CONTROL, direction=PinDirection.OUTPUT, default_value=440.0, unit="Hz"),
+                PinSchema(name="gate", pin_type=PinType.CONTROL, direction=PinDirection.OUTPUT, default_value=0.0),
+                PinSchema(name="accent", pin_type=PinType.CONTROL, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        bpm = float(self.params.get("bpm", 125.0))
+        gl = float(self.params.get("gate_length", 0.65))
+        st = float(self.params.get("slide_time", 0.06))
+        self.seq = StepSequencer(sample_rate, bpm=bpm, gate_length=gl, slide_time=st)
+
+    def set_sample_rate(self, sr: int) -> None:
+        super().set_sample_rate(sr)
+        self.seq.set_sample_rate(sr)
+
+    def reset_state(self) -> None:
+        self.seq.reset()
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.seq.set_bpm(float(self.params.get("bpm", 125.0)))
+        self.seq.gate_length = float(self.params.get("gate_length", 0.65))
+        self.seq.slide_time = float(self.params.get("slide_time", 0.06))
+
+        pitches = np.zeros(block_size, dtype=np.float32)
+        gates = np.zeros(block_size, dtype=np.float32)
+        accents = np.zeros(block_size, dtype=np.float32)
+
+        for i in range(block_size):
+            p, g, a = self.seq.process_sample()
+            pitches[i] = p
+            gates[i] = g
+            accents[i] = a
+
+        return {"pitch": pitches, "gate": gates, "accent": accents}
+
+
+class KarplusStrongNode(BaseNode):
+    """Karplus-Strong physical modeling plucked string synthesizer."""
+
+    TYPE_ID = "karplus_strong"
+    DISPLAY_NAME = "Karplus String Pluck"
+    CATEGORY = "Generators"
+    DESCRIPTION = "Physical modeling string synthesis for plucked acoustic instruments, harp, and guitars."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "frequency": 220.0,
+            "decay": 0.985,
+            "damping": 0.35,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="trigger", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+                PinSchema(name="freq_mod", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0, unit="Hz"),
+            ],
+            outputs=[
+                PinSchema(name="out", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        freq = float(self.params.get("frequency", 220.0))
+        dec = float(self.params.get("decay", 0.985))
+        damp = float(self.params.get("damping", 0.35))
+        self.string = KarplusStrongString(sample_rate, freq, dec, damp)
+
+    def set_sample_rate(self, sr: int) -> None:
+        super().set_sample_rate(sr)
+        self.string.set_sample_rate(sr)
+
+    def reset_state(self) -> None:
+        self.string.trigger_pluck()
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.string.set_frequency(float(self.params.get("frequency", 220.0)))
+        self.string.decay = float(self.params.get("decay", 0.985))
+        self.string.damping = float(self.params.get("damping", 0.35))
+
+        trig = inputs.get("trigger")
+        fm = inputs.get("freq_mod")
+        out = self.string.process_block(block_size, freq_mod=fm, trigger_triggers=trig)
+        return {"out": out}
+
+
+class FormantNode(BaseNode):
+    """Triple-peak bandpass vowel formant filter."""
+
+    TYPE_ID = "formant_filter"
+    DISPLAY_NAME = "Vowel Formant Filter"
+    CATEGORY = "Filters"
+    DESCRIPTION = "Human vocal tract vowel resonator with smooth morphing across A, E, I, O, U phonemes."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "vowel_pos": 0.0,
+            "resonance_scale": 1.2,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="in", pin_type=PinType.AUDIO, direction=PinDirection.INPUT, default_value=0.0),
+                PinSchema(name="vowel_mod", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="out", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        v = float(self.params.get("vowel_pos", 0.0))
+        r = float(self.params.get("resonance_scale", 1.2))
+        self.filter = FormantFilter(sample_rate, v, r)
+
+    def set_sample_rate(self, sr: int) -> None:
+        super().set_sample_rate(sr)
+        self.filter.set_sample_rate(sr)
+
+    def reset_state(self) -> None:
+        self.filter.reset_state()
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.filter.set_vowel(float(self.params.get("vowel_pos", 0.0)))
+        self.filter.resonance_scale = float(self.params.get("resonance_scale", 1.2))
+
+        in_buf = inputs.get("in", np.zeros(block_size, dtype=np.float32))
+        vmod = inputs.get("vowel_mod")
+        out = self.filter.process_block(in_buf, vowel_mod=vmod)
+        return {"out": out}
+
+
+class ChorusNode(BaseNode):
+    """Stereo BBD Chorus and Flanger effect with quadrature modulation."""
+
+    TYPE_ID = "chorus"
+    DISPLAY_NAME = "Stereo Chorus / Flanger"
+    CATEGORY = "Effects"
+    DESCRIPTION = "BBD analog-modeled stereo chorus and flanger with dual 90-degree quadrature LFOs."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "rate_hz": 1.2,
+            "depth_ms": 3.5,
+            "base_delay_ms": 15.0,
+            "feedback": 0.25,
+            "mix": 0.5,
+            "flanger_mode": False,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="in_l", pin_type=PinType.AUDIO, direction=PinDirection.INPUT, default_value=0.0),
+                PinSchema(name="in_r", pin_type=PinType.AUDIO, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="out_l", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+                PinSchema(name="out_r", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        rate = float(self.params.get("rate_hz", 1.2))
+        depth = float(self.params.get("depth_ms", 3.5))
+        delay = float(self.params.get("base_delay_ms", 15.0))
+        fb = float(self.params.get("feedback", 0.25))
+        mix = float(self.params.get("mix", 0.5))
+        flange = bool(self.params.get("flanger_mode", False))
+        self.chorus = StereoChorusEffect(sample_rate, rate, depth, delay, fb, mix, flange)
+
+    def set_sample_rate(self, sr: int) -> None:
+        super().set_sample_rate(sr)
+        self.chorus.set_sample_rate(sr)
+
+    def reset_state(self) -> None:
+        self.chorus.reset_state()
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.chorus.rate_hz = float(self.params.get("rate_hz", 1.2))
+        self.chorus.depth_ms = float(self.params.get("depth_ms", 3.5))
+        self.chorus.base_delay_ms = float(self.params.get("base_delay_ms", 15.0))
+        self.chorus.feedback = float(self.params.get("feedback", 0.25))
+        self.chorus.mix = float(self.params.get("mix", 0.5))
+        self.chorus.flanger_mode = bool(self.params.get("flanger_mode", False))
+
+        in_l = inputs.get("in_l", np.zeros(block_size, dtype=np.float32))
+        in_r = inputs.get("in_r", in_l)
+
+        out_l = np.zeros(block_size, dtype=np.float32)
+        out_r = np.zeros(block_size, dtype=np.float32)
+
+        for i in range(block_size):
+            ol, or_val = self.chorus.process_sample(float(in_l[i]), float(in_r[i]))
+            out_l[i] = ol
+            out_r[i] = or_val
+
+        return {"out_l": out_l, "out_r": out_r}
+
+
+class KickNode(BaseNode):
+    """Roland TR-808 style analog kick drum synthesizer."""
+
+    TYPE_ID = "drum_kick"
+    DISPLAY_NAME = "TR-808 Kick Drum"
+    CATEGORY = "Percussion"
+    DESCRIPTION = "Analog kick drum generator with fast exponential pitch dive, attack click, and saturation."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "pitch_start": 220.0,
+            "pitch_end": 48.0,
+            "pitch_decay": 0.04,
+            "decay_time": 0.6,
+            "click_amount": 0.35,
+            "drive": 1.4,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="trigger", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="out", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        p_start = float(self.params.get("pitch_start", 220.0))
+        p_end = float(self.params.get("pitch_end", 48.0))
+        p_dec = float(self.params.get("pitch_decay", 0.04))
+        dec = float(self.params.get("decay_time", 0.6))
+        click = float(self.params.get("click_amount", 0.35))
+        drv = float(self.params.get("drive", 1.4))
+        self.kick = Kick808(sample_rate, p_start, p_end, p_dec, dec, click, drv)
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.kick.pitch_start = float(self.params.get("pitch_start", 220.0))
+        self.kick.pitch_end = float(self.params.get("pitch_end", 48.0))
+        self.kick.pitch_decay = float(self.params.get("pitch_decay", 0.04))
+        self.kick.decay_time = float(self.params.get("decay_time", 0.6))
+        self.kick.click_amount = float(self.params.get("click_amount", 0.35))
+        self.kick.drive = float(self.params.get("drive", 1.4))
+
+        trig = inputs.get("trigger")
+        out = np.zeros(block_size, dtype=np.float32)
+
+        for i in range(block_size):
+            if trig is not None and trig[i] > 0.5:
+                self.kick.trigger(velocity=float(trig[i]))
+            out[i] = self.kick.process_sample()
+
+        return {"out": out}
+
+
+class SnareNode(BaseNode):
+    """Roland TR-808 style analog snare drum synthesizer."""
+
+    TYPE_ID = "drum_snare"
+    DISPLAY_NAME = "TR-808 Snare Drum"
+    CATEGORY = "Percussion"
+    DESCRIPTION = "Analog snare drum combining dual harmonic body tones and bandpass snappy noise."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "tone_freq": 180.0,
+            "tone_decay": 0.15,
+            "snappy_decay": 0.25,
+            "snappy_mix": 0.65,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="trigger", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="out", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        tf = float(self.params.get("tone_freq", 180.0))
+        td = float(self.params.get("tone_decay", 0.15))
+        sd = float(self.params.get("snappy_decay", 0.25))
+        sm = float(self.params.get("snappy_mix", 0.65))
+        self.snare = Snare808(sample_rate, tf, td, sd, sm)
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.snare.tone_freq = float(self.params.get("tone_freq", 180.0))
+        self.snare.tone_decay = float(self.params.get("tone_decay", 0.15))
+        self.snare.snappy_decay = float(self.params.get("snappy_decay", 0.25))
+        self.snare.snappy_mix = float(self.params.get("snappy_mix", 0.65))
+
+        trig = inputs.get("trigger")
+        out = np.zeros(block_size, dtype=np.float32)
+
+        for i in range(block_size):
+            if trig is not None and trig[i] > 0.5:
+                self.snare.trigger(velocity=float(trig[i]))
+            out[i] = self.snare.process_sample()
+
+        return {"out": out}
+
+
+class HiHatNode(BaseNode):
+    """Roland TR-808 style 6-oscillator inharmonic metallic Hi-Hat."""
+
+    TYPE_ID = "drum_hihat"
+    DISPLAY_NAME = "TR-808 6-Osc Hi-Hat"
+    CATEGORY = "Percussion"
+    DESCRIPTION = "6-oscillator inharmonic square wave cluster through resonant highpass for metallic cymbals."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "decay_time": 0.06,
+            "cutoff_hz": 7200.0,
+            "open_hat": False,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="trigger", pin_type=PinType.CONTROL, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="out", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        d = float(self.params.get("decay_time", 0.06))
+        c = float(self.params.get("cutoff_hz", 7200.0))
+        self.hihat = HiHat808(sample_rate, d, c)
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        self.hihat.decay_time = float(self.params.get("decay_time", 0.06))
+        self.hihat.cutoff_hz = float(self.params.get("cutoff_hz", 7200.0))
+        is_open = bool(self.params.get("open_hat", False))
+
+        trig = inputs.get("trigger")
+        out = np.zeros(block_size, dtype=np.float32)
+
+        for i in range(block_size):
+            if trig is not None and trig[i] > 0.5:
+                self.hihat.trigger(velocity=float(trig[i]), open_hat=is_open)
+            out[i] = self.hihat.process_sample()
+
+        return {"out": out}
+
+
+class RingModNode(BaseNode):
+    """Audio-rate balanced four-quadrant multiplier (Ring Modulator)."""
+
+    TYPE_ID = "ring_mod"
+    DISPLAY_NAME = "Ring Modulator"
+    CATEGORY = "Modulation"
+    DESCRIPTION = "Four-quadrant audio-rate balanced multiplier generating sum and difference sidebands."
+
+    @classmethod
+    def get_default_params(cls) -> Dict[str, Any]:
+        return {
+            "internal_carrier_freq": 440.0,
+            "use_internal_carrier": False,
+            "mix": 1.0,
+        }
+
+    @classmethod
+    def get_metadata(cls) -> NodeMetadata:
+        return NodeMetadata(
+            type_id=cls.TYPE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category=cls.CATEGORY,
+            description=cls.DESCRIPTION,
+            inputs=[
+                PinSchema(name="carrier", pin_type=PinType.AUDIO, direction=PinDirection.INPUT, default_value=0.0),
+                PinSchema(name="modulator", pin_type=PinType.AUDIO, direction=PinDirection.INPUT, default_value=0.0),
+            ],
+            outputs=[
+                PinSchema(name="out", pin_type=PinType.AUDIO, direction=PinDirection.OUTPUT, default_value=0.0),
+            ],
+            default_params=cls.get_default_params(),
+        )
+
+    def __init__(self, node_id: str, sample_rate: int = 44100, params: Optional[Dict[str, Any]] = None):
+        super().__init__(node_id, sample_rate, params)
+        self._phase = 0.0
+
+    def process(self, block_size: int, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        mix = float(self.params.get("mix", 1.0))
+        use_int = bool(self.params.get("use_internal_carrier", False))
+        int_freq = float(self.params.get("internal_carrier_freq", 440.0))
+
+        mod_sig = inputs.get("modulator", np.zeros(block_size, dtype=np.float32))
+
+        if use_int:
+            # Generate internal sine carrier
+            carrier = np.zeros(block_size, dtype=np.float32)
+            dt = int_freq / self.sample_rate
+            for i in range(block_size):
+                carrier[i] = math.sin(2.0 * math.pi * self._phase)
+                self._phase = (self._phase + dt) % 1.0
+        else:
+            carrier = inputs.get("carrier", np.zeros(block_size, dtype=np.float32))
+
+        ring_out = carrier * mod_sig
+        out = (1.0 - mix) * mod_sig + mix * ring_out
+        return {"out": out}
+
+
 NODE_REGISTRY: Dict[str, type[BaseNode]] = {
     OscillatorNode.TYPE_ID: OscillatorNode,
     FilterNode.TYPE_ID: FilterNode,
@@ -730,4 +1226,14 @@ NODE_REGISTRY: Dict[str, type[BaseNode]] = {
     ReverbNode.TYPE_ID: ReverbNode,
     PannerNode.TYPE_ID: PannerNode,
     OutputNode.TYPE_ID: OutputNode,
+    # New Advanced DSP Nodes
+    SequencerNode.TYPE_ID: SequencerNode,
+    KarplusStrongNode.TYPE_ID: KarplusStrongNode,
+    FormantNode.TYPE_ID: FormantNode,
+    ChorusNode.TYPE_ID: ChorusNode,
+    KickNode.TYPE_ID: KickNode,
+    SnareNode.TYPE_ID: SnareNode,
+    HiHatNode.TYPE_ID: HiHatNode,
+    RingModNode.TYPE_ID: RingModNode,
 }
+

@@ -16,6 +16,8 @@ from waveforge.graph.presets import PRESET_CATALOG
 from waveforge.graph.node import NODE_REGISTRY
 from waveforge.codegen.c_generator import CCodeGenerator
 from waveforge.codegen.wasm_builder import CCompilerDriver
+from waveforge.codegen.audioworklet_generator import AudioWorkletGenerator
+from waveforge.codegen.plugin_generator import PluginGenerator
 from waveforge.audio.wav_io import write_wav
 from waveforge.audio.midi import note_name_to_midi, midi_to_note_name
 from waveforge.audio.player import AudioPlayer
@@ -117,6 +119,40 @@ def export_c_command(
 
     console.print(f"[bold green][+][/bold green] Standalone C99 header exported to [bold white]{out}[/bold white]")
     console.print(f"Includes self-contained mathematical PolyBLEP oscillators, RBJ biquad filters, and DSP evaluation loop.")
+
+
+@app.command("export-html")
+def export_html_command(
+    patch: Optional[str] = typer.Argument(None, help="Path to patch JSON or preset name"),
+    out: str = typer.Option("waveforge_player.html", "-o", "--out", help="Output standalone HTML5 player file"),
+):
+    """Generate a single-file zero-dependency HTML5 + WebAudio player for the synthesizer."""
+    graph = _resolve_graph(patch)
+    generator = AudioWorkletGenerator(graph)
+    html_content = generator.generate_standalone_html(title=f"WaveForge - {graph.name}")
+
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    console.print(f"[bold green][+][/bold green] Standalone HTML5 player generated at [bold white]{out}[/bold white]")
+    console.print("Double click or open in any modern browser to play live in real-time.")
+
+
+@app.command("export-plugin")
+def export_plugin_command(
+    patch: Optional[str] = typer.Argument(None, help="Path to patch JSON or preset name"),
+    out_dir: str = typer.Option("build_plugin", "-o", "--out-dir", help="Output directory for C++ plugin project"),
+    name: str = typer.Option("WaveForgeSynth", "-n", "--name", help="Plugin target and class name"),
+):
+    """Export complete CMake C++ audio plugin project skeleton (VST3 / CLAP compatible)."""
+    graph = _resolve_graph(patch)
+    generator = PluginGenerator(graph)
+    files = generator.export_plugin_project(output_dir=out_dir, plugin_name=name)
+
+    console.print(f"[bold green][+][/bold green] Exported C++ VST3/CLAP plugin project to [bold white]{out_dir}[/bold white]")
+    for key, path in files.items():
+        console.print(f"  - [cyan]{key}[/cyan]: {path}")
+
 
 
 @app.command("compile-c")

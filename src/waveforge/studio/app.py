@@ -14,9 +14,12 @@ from pydantic import BaseModel
 from waveforge.core.config import PatchSchema
 from waveforge.graph.patch import NodeGraph
 from waveforge.graph.engine import AudioEngine
+from waveforge.graph.polyphony import PolyVoiceManager
 from waveforge.graph.presets import PRESET_CATALOG
 from waveforge.graph.node import NODE_REGISTRY
 from waveforge.codegen.c_generator import CCodeGenerator
+from waveforge.codegen.audioworklet_generator import AudioWorkletGenerator
+from waveforge.codegen.plugin_generator import PluginGenerator
 from waveforge.audio.wav_io import get_wav_bytes
 from waveforge.audio.midi import note_name_to_midi
 
@@ -143,3 +146,63 @@ async def export_c_code(req: ExportCRequest):
         return JSONResponse(content={"c_code": c_code})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/export-html")
+async def export_html_player(req: ExportCRequest):
+    """Generate standalone HTML5 / WebAudio player single-file bundle."""
+    try:
+        graph = NodeGraph.from_schema(req.patch)
+        gen = AudioWorkletGenerator(graph)
+        html_code = gen.generate_standalone_html(title=f"WaveForge - {graph.name}")
+        return JSONResponse(content={"html": html_code})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/export-plugin")
+async def export_plugin_code(req: ExportCRequest):
+    """Generate C++ VST3/CLAP plugin files."""
+    try:
+        graph = NodeGraph.from_schema(req.patch)
+        gen = PluginGenerator(graph)
+        safe_name = "WaveForgeSynth"
+        return JSONResponse(content={
+            "cmake": gen.generate_cmake(safe_name),
+            "cpp_header": gen.generate_cpp_header(safe_name),
+            "cpp_source": gen.generate_cpp_source(safe_name),
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/render-poly")
+async def render_polyphonic(req: RenderRequest):
+    """Render polyphonic chord using PolyVoiceManager."""
+    try:
+        graph = NodeGraph.from_schema(req.patch)
+        poly = PolyVoiceManager(base_graph=graph, max_voices=8)
+        left, right = poly.render(duration_sec=req.duration)
+
+        wav_bytes = get_wav_bytes(left, right, sample_rate=graph.sample_rate, bit_depth=16)
+        b64_audio = base64.b64encode(wav_bytes).decode("ascii")
+
+        step = max(1, len(left) // 512)
+        waveform_vis = left[::step][:512].tolist()
+
+        fft_len = 2048
+        windowed = left[:fft_len] * np.hanning(min(len(left), fft_len))
+        fft_mag = np.abs(np.fft.rfft(windowed, n=fft_len))
+        fft_db = 20.0 * np.log10(np.maximum(fft_mag, 1e-5))
+        spectrum_vis = np.clip(fft_db, -80.0, 10.0)[:256].tolist()
+
+        return JSONResponse(content={
+            "audio_base64": b64_audio,
+            "peak": float(np.max(np.abs(left))),
+            "rms": float(np.sqrt(np.mean(left ** 2))),
+            "waveform": waveform_vis,
+            "spectrum": spectrum_vis,
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

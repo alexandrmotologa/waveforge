@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WaveForge — Modular Audio DSP & C Synthesizer Studio</title>
+  <title>WaveForge - Modular Audio DSP & C Synthesizer Studio</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,21 +33,40 @@
             <option value="sub_bass">Sub Bass Foundation</option>
             <option value="lush_pad">Lush Ambient Pad</option>
             <option value="fm_bell">FM Crystal Bell</option>
+            <option value="techno_acid_seq">Techno Acid Sequence</option>
+            <option value="karplus_acoustic">Karplus Acoustic Pluck</option>
+            <option value="vocal_choir">Vocal Formant Choir</option>
+            <option value="tr808_groove">TR-808 Drum Machine</option>
           </select>
         </div>
 
         <div class="control-group">
+          <button id="btn-undo" class="btn btn-ghost" title="Undo (Ctrl+Z)">
+            <span class="icon">&#8630;</span>
+          </button>
+          <button id="btn-redo" class="btn btn-ghost" title="Redo (Ctrl+Y)">
+            <span class="icon">&#8631;</span>
+          </button>
           <button id="btn-add-node" class="btn btn-secondary">
             <span class="icon">+</span> Add Node
           </button>
-          <button id="btn-play" class="btn btn-primary">
-            <span class="icon">▶</span> Play (Space)
+          <button id="btn-play" class="btn btn-primary" title="Trigger Note (Space)">
+            <span class="icon">&#9654;</span> Play
           </button>
-          <button id="btn-export-c" class="btn btn-accent">
-            <span class="icon">&lt;/&gt;</span> Export C
+          <button id="btn-render-poly" class="btn btn-accent" title="Polyphonic Chord">
+            <span class="icon">&#9836;</span> Poly
+          </button>
+          <button id="btn-export-c" class="btn btn-secondary" title="Export Standalone C99">
+            <span class="icon">&lt;/&gt;</span> C99
+          </button>
+          <button id="btn-export-html" class="btn btn-secondary" title="Export Single-File HTML5 Player">
+            <span class="icon">&#127760;</span> HTML5
+          </button>
+          <button id="btn-export-plugin" class="btn btn-secondary" title="Export VST3/CLAP Plugin">
+            <span class="icon">&#128268;</span> VST/CLAP
           </button>
           <button id="btn-download-wav" class="btn btn-ghost" title="Download WAV">
-            <span class="icon">↓</span> WAV
+            <span class="icon">&#8595;</span> WAV
           </button>
         </div>
       </div>
@@ -123,6 +142,22 @@
         </div>
         <div class="modal-body">
           <pre id="c-code-view" class="code-view"><code></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Plugin Export -->
+    <div id="modal-export-plugin" class="modal-overlay hidden">
+      <div class="modal-card modal-large">
+        <div class="modal-header">
+          <h3>VST3 & CLAP C++ Audio Plugin Skeleton</h3>
+          <div class="modal-actions">
+            <button id="btn-copy-plugin" class="btn btn-secondary">Copy C++ Source</button>
+            <button class="modal-close" id="btn-close-plugin-modal">&times;</button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <pre id="plugin-code-view" class="code-view"><code></code></pre>
         </div>
       </div>
     </div>
